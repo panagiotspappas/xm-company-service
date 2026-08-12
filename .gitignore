@@ -18,6 +18,10 @@ go.work
 go.work.sum
 .golangci-cache/
 
+# Local requirements and planning documents
+/Company Service — Revised Repository Structure and Implementation Plan.md
+/XM Golang Exercise — Requirements Report.md
+
 # Editors and operating systems
 .idea/
 .vscode/
