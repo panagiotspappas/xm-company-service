@@ -17,6 +17,7 @@ coverage.*
 go.work
 go.work.sum
 .golangci-cache/
+/.tools/
 
 # Local requirements and planning documents
 /Company Service — Revised Repository Structure and Implementation Plan.md
