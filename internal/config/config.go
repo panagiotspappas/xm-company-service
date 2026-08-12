@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 )
 
 const (
-	defaultHTTPAddress    = ":8080"
-	defaultLogLevel       = "INFO"
-	defaultLogFormat      = "text"
-	minimumJWTSecretBytes = 32
+	defaultHTTPAddress      = ":8080"
+	defaultDatabaseMaxConns = int32(10)
+	defaultLogLevel         = "INFO"
+	defaultLogFormat        = "text"
+	minimumJWTSecretBytes   = 32
+	maximumDatabaseMaxConns = int64(1<<31 - 1)
 )
 
 // LogFormat identifies the structured log encoding.
@@ -25,11 +28,12 @@ const (
 
 // Config contains the application's runtime configuration.
 type Config struct {
-	HTTPAddress string
-	DatabaseURL string
-	LogLevel    slog.Level
-	LogFormat   LogFormat
-	JWT         JWTConfig
+	HTTPAddress      string
+	DatabaseURL      string
+	DatabaseMaxConns int32
+	LogLevel         slog.Level
+	LogFormat        LogFormat
+	JWT              JWTConfig
 }
 
 // JWTConfig contains the configuration shared by JWT verification and
@@ -45,6 +49,10 @@ func Load() (Config, error) {
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
+	}
+	databaseMaxConns, err := parseDatabaseMaxConns(os.Getenv("DB_MAX_CONNS"))
+	if err != nil {
+		return Config{}, err
 	}
 
 	jwtConfig, err := LoadJWT()
@@ -63,11 +71,12 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		HTTPAddress: valueOrDefault("HTTP_ADDR", defaultHTTPAddress),
-		DatabaseURL: databaseURL,
-		LogLevel:    logLevel,
-		LogFormat:   logFormat,
-		JWT:         jwtConfig,
+		HTTPAddress:      valueOrDefault("HTTP_ADDR", defaultHTTPAddress),
+		DatabaseURL:      databaseURL,
+		DatabaseMaxConns: databaseMaxConns,
+		LogLevel:         logLevel,
+		LogFormat:        logFormat,
+		JWT:              jwtConfig,
 	}, nil
 }
 
@@ -106,6 +115,30 @@ func valueOrDefault(name, defaultValue string) string {
 	}
 
 	return value
+}
+
+func parseDatabaseMaxConns(value string) (int32, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return defaultDatabaseMaxConns, nil
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf(
+			"DB_MAX_CONNS must be an integer between 1 and %d: %w",
+			maximumDatabaseMaxConns,
+			err,
+		)
+	}
+	if parsed < 1 {
+		return 0, fmt.Errorf(
+			"DB_MAX_CONNS must be an integer between 1 and %d",
+			maximumDatabaseMaxConns,
+		)
+	}
+
+	return int32(parsed), nil
 }
 
 func parseLogLevel(value string) (slog.Level, error) {

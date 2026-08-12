@@ -173,6 +173,52 @@ func TestRepositoryDeleteNotFound(t *testing.T) {
 	}
 }
 
+func TestRepositoryPoolWaitHonorsContextDeadline(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Fatal("TEST_DATABASE_URL is required for integration tests")
+	}
+
+	poolConfig, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		t.Fatalf("parse test PostgreSQL pool configuration: %v", err)
+	}
+	poolConfig.MaxConns = 1
+
+	startupContext, cancelStartup := context.WithTimeout(
+		context.Background(),
+		testOperationTimeout,
+	)
+	pool, err := pgxpool.NewWithConfig(startupContext, poolConfig)
+	if err != nil {
+		cancelStartup()
+		t.Fatalf("create bounded test PostgreSQL pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	if err := pool.Ping(startupContext); err != nil {
+		cancelStartup()
+		t.Fatalf("ping bounded test PostgreSQL pool: %v", err)
+	}
+
+	connection, err := pool.Acquire(startupContext)
+	cancelStartup()
+	if err != nil {
+		t.Fatalf("acquire sole PostgreSQL connection: %v", err)
+	}
+	t.Cleanup(connection.Release)
+	if got := pool.Stat().AcquiredConns(); got != 1 {
+		t.Fatalf("acquired connections = %d, want 1", got)
+	}
+
+	repository := NewRepository(pool)
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	_, err = repository.GetByID(ctx, uuid.New())
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("GetByID() error = %v, want context deadline exceeded", err)
+	}
+}
+
 func openTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 

@@ -37,7 +37,13 @@ func run() error {
 	startupContext, cancelStartup := context.WithTimeout(context.Background(), databaseStartupTimeout)
 	defer cancelStartup()
 
-	pool, err := pgxpool.New(startupContext, cfg.DatabaseURL)
+	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("parse PostgreSQL pool configuration: %w", err)
+	}
+	poolConfig.MaxConns = cfg.DatabaseMaxConns
+
+	pool, err := pgxpool.NewWithConfig(startupContext, poolConfig)
 	if err != nil {
 		return fmt.Errorf("create PostgreSQL pool: %w", err)
 	}

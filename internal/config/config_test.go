@@ -38,6 +38,9 @@ func TestLoadDefaults(t *testing.T) {
 	if got.HTTPAddress != ":8080" {
 		t.Fatalf("HTTPAddress = %q, want :8080", got.HTTPAddress)
 	}
+	if got.DatabaseMaxConns != 10 {
+		t.Fatalf("DatabaseMaxConns = %d, want 10", got.DatabaseMaxConns)
+	}
 	if got.LogLevel != slog.LevelInfo {
 		t.Fatalf("LogLevel = %v, want %v", got.LogLevel, slog.LevelInfo)
 	}
@@ -66,6 +69,7 @@ func TestLoadConfiguredValues(t *testing.T) {
 		"  "+testJWTIssuer+"  ",
 		"  "+testJWTAudience+"  ",
 	)
+	t.Setenv("DB_MAX_CONNS", "25")
 
 	got, err := Load()
 	if err != nil {
@@ -80,11 +84,84 @@ func TestLoadConfiguredValues(t *testing.T) {
 	if got.LogFormat != LogFormatJSON {
 		t.Fatalf("LogFormat = %q, want %q", got.LogFormat, LogFormatJSON)
 	}
+	if got.DatabaseMaxConns != 25 {
+		t.Fatalf("DatabaseMaxConns = %d, want 25", got.DatabaseMaxConns)
+	}
 	if got.JWT.Issuer != testJWTIssuer {
 		t.Fatalf("JWT.Issuer = %q, want trimmed value %q", got.JWT.Issuer, testJWTIssuer)
 	}
 	if got.JWT.Audience != testJWTAudience {
 		t.Fatalf("JWT.Audience = %q, want trimmed value %q", got.JWT.Audience, testJWTAudience)
+	}
+}
+
+func TestLoadDatabaseMaxConns(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  int32
+	}{
+		{name: "empty", value: "", want: 10},
+		{name: "whitespace only", value: "   ", want: 10},
+		{name: "default value", value: "10", want: 10},
+		{name: "surrounding whitespace", value: " 10 ", want: 10},
+		{name: "lower boundary", value: "1", want: 1},
+		{name: "configured value", value: "25", want: 25},
+		{name: "upper boundary", value: "2147483647", want: 2147483647},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			setEnvironment(
+				t,
+				"postgres://example",
+				"",
+				"",
+				"",
+				testJWTSecret,
+				testJWTIssuer,
+				testJWTAudience,
+			)
+			t.Setenv("DB_MAX_CONNS", test.value)
+
+			got, err := Load()
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if got.DatabaseMaxConns != test.want {
+				t.Fatalf("DatabaseMaxConns = %d, want %d", got.DatabaseMaxConns, test.want)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsInvalidDatabaseMaxConns(t *testing.T) {
+	tests := map[string]string{
+		"zero":       "0",
+		"negative":   "-1",
+		"fractional": "1.5",
+		"malformed":  "abc",
+		"overflow":   "2147483648",
+	}
+
+	for name, value := range tests {
+		t.Run(name, func(t *testing.T) {
+			setEnvironment(
+				t,
+				"postgres://example",
+				"",
+				"",
+				"",
+				testJWTSecret,
+				testJWTIssuer,
+				testJWTAudience,
+			)
+			t.Setenv("DB_MAX_CONNS", value)
+
+			if _, err := Load(); err == nil {
+				t.Fatal("Load() error = nil, want invalid DB_MAX_CONNS error")
+			}
+		})
 	}
 }
 
@@ -216,6 +293,7 @@ func setEnvironment(
 	t.Setenv("HTTP_ADDR", httpAddress)
 	t.Setenv("LOG_LEVEL", logLevel)
 	t.Setenv("LOG_FORMAT", logFormat)
+	t.Setenv("DB_MAX_CONNS", "")
 	setJWTEnvironment(t, jwtSecret, jwtIssuer, jwtAudience)
 }
 
