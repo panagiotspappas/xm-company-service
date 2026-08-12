@@ -1,0 +1,25 @@
+# Build output
+/bin/
+/company-service
+*.exe
+*.test
+
+# Test and coverage output
+*.out
+coverage.*
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Go workspace and tooling
+go.work
+go.work.sum
+.golangci-cache/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
