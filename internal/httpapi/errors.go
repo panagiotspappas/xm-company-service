@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,13 +16,23 @@ const (
 	errorCodeContentTooLarge      = "CONTENT_TOO_LARGE"
 	errorCodeUnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE"
 	errorCodeUnauthorized         = "UNAUTHORIZED"
+	errorCodeServiceUnavailable   = "SERVICE_UNAVAILABLE"
 	errorCodeInternal             = "INTERNAL_ERROR"
 )
 
-func writeServiceError(writer http.ResponseWriter, err error) {
+func writeServiceError(writer http.ResponseWriter, ctx context.Context, err error) {
 	var validationErr *company.ValidationError
 
 	switch {
+	case ctx.Err() == context.DeadlineExceeded:
+		writeError(
+			writer,
+			http.StatusServiceUnavailable,
+			errorCodeServiceUnavailable,
+			"service unavailable",
+		)
+	case ctx.Err() == context.Canceled:
+		return
 	case errors.As(err, &validationErr):
 		writeError(writer, http.StatusBadRequest, errorCodeInvalidRequest, "invalid request")
 	case errors.Is(err, company.ErrNotFound):

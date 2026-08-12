@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/panagiotspappas/xm-company-service/internal/company"
@@ -200,6 +201,16 @@ func TestCreateCompanyMapsServiceErrors(t *testing.T) {
 			status:    http.StatusInternalServerError,
 			errorCode: errorCodeInternal,
 		},
+		"cancellation error with active request": {
+			err:       context.Canceled,
+			status:    http.StatusInternalServerError,
+			errorCode: errorCodeInternal,
+		},
+		"deadline error with active request": {
+			err:       context.DeadlineExceeded,
+			status:    http.StatusInternalServerError,
+			errorCode: errorCodeInternal,
+		},
 	}
 
 	for name, test := range tests {
@@ -222,6 +233,64 @@ func TestCreateCompanyMapsServiceErrors(t *testing.T) {
 			)
 			assertAPIError(t, response, test.status, test.errorCode)
 		})
+	}
+}
+
+func TestGetCompanyMapsApplicationDeadlineToServiceUnavailable(t *testing.T) {
+	const timeout = 10 * time.Millisecond
+
+	service := &fakeCompanyService{
+		get: func(ctx context.Context, _ uuid.UUID) (company.Company, error) {
+			<-ctx.Done()
+			return company.Company{}, ctx.Err()
+		},
+	}
+	handler := RequestTimeout(timeout)(newTestRouter(service))
+	response := performRequest(
+		t,
+		handler,
+		http.MethodGet,
+		"/v1/companies/"+uuid.NewString(),
+		"",
+		"",
+	)
+
+	assertAPIError(
+		t,
+		response,
+		http.StatusServiceUnavailable,
+		errorCodeServiceUnavailable,
+	)
+}
+
+func TestGetCompanyDoesNotWriteAfterRequestCancellation(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	service := &fakeCompanyService{
+		get: func(ctx context.Context, _ uuid.UUID) (company.Company, error) {
+			cancel()
+			<-ctx.Done()
+			return company.Company{}, ctx.Err()
+		},
+	}
+	handler := newTestRouter(service)
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/v1/companies/"+uuid.NewString(),
+		nil,
+	).WithContext(parent)
+	underlying := httptest.NewRecorder()
+	response := &statusResponseWriter{ResponseWriter: underlying}
+
+	handler.ServeHTTP(response, request)
+
+	if response.committed {
+		t.Fatal("response was committed after request cancellation")
+	}
+	if underlying.Body.Len() != 0 {
+		t.Fatalf("body = %q, want empty", underlying.Body.String())
+	}
+	if got := underlying.Header().Get("Content-Type"); got != "" {
+		t.Fatalf("Content-Type = %q, want empty", got)
 	}
 }
 

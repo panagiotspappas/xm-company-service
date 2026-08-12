@@ -47,7 +47,7 @@ func (handler companyHandler) create(writer http.ResponseWriter, request *http.R
 
 	created, err := handler.service.Create(request.Context(), input)
 	if err != nil {
-		writeServiceError(writer, err)
+		writeServiceError(writer, request.Context(), err)
 		return
 	}
 
@@ -63,7 +63,7 @@ func (handler companyHandler) get(writer http.ResponseWriter, request *http.Requ
 
 	result, err := handler.service.Get(request.Context(), id)
 	if err != nil {
-		writeServiceError(writer, err)
+		writeServiceError(writer, request.Context(), err)
 		return
 	}
 
@@ -99,7 +99,7 @@ func (handler companyHandler) patch(writer http.ResponseWriter, request *http.Re
 
 	updated, err := handler.service.Patch(request.Context(), id, input)
 	if err != nil {
-		writeServiceError(writer, err)
+		writeServiceError(writer, request.Context(), err)
 		return
 	}
 
@@ -113,7 +113,7 @@ func (handler companyHandler) delete(writer http.ResponseWriter, request *http.R
 	}
 
 	if err := handler.service.Delete(request.Context(), id); err != nil {
-		writeServiceError(writer, err)
+		writeServiceError(writer, request.Context(), err)
 		return
 	}
 
