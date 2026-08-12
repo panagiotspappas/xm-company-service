@@ -1,4 +1,4 @@
-.PHONY: build run test db-up db-down migrate-up migrate-down test-integration
+.PHONY: build run test dev-token db-up db-down migrate-up migrate-down test-integration
 
 BIN_DIR := bin
 BINARY := $(BIN_DIR)/company-service
@@ -8,6 +8,7 @@ MIGRATE_VERSION := v4.19.1
 LOCAL_DATABASE_URL := postgres://company:company@localhost:5432/company_service?sslmode=disable
 DATABASE_URL ?= $(LOCAL_DATABASE_URL)
 TEST_DATABASE_URL ?= $(LOCAL_DATABASE_URL)
+DEV_TOKEN_TTL ?= 1h
 
 build:
 	mkdir -p $(BIN_DIR)
@@ -18,6 +19,9 @@ run:
 
 test:
 	go test ./...
+
+dev-token:
+	@go run ./cmd/dev-token -ttl "$(DEV_TOKEN_TTL)"
 
 db-up:
 	docker compose up -d --wait postgres

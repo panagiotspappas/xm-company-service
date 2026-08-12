@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	defaultHTTPAddress = ":8080"
-	defaultLogLevel    = "INFO"
-	defaultLogFormat   = "text"
+	defaultHTTPAddress    = ":8080"
+	defaultLogLevel       = "INFO"
+	defaultLogFormat      = "text"
+	minimumJWTSecretBytes = 32
 )
 
 // LogFormat identifies the structured log encoding.
@@ -28,6 +29,15 @@ type Config struct {
 	DatabaseURL string
 	LogLevel    slog.Level
 	LogFormat   LogFormat
+	JWT         JWTConfig
+}
+
+// JWTConfig contains the configuration shared by JWT verification and
+// development token generation.
+type JWTConfig struct {
+	Secret   string
+	Issuer   string
+	Audience string
 }
 
 // Load reads and validates configuration from environment variables.
@@ -35,6 +45,11 @@ func Load() (Config, error) {
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
+	}
+
+	jwtConfig, err := LoadJWT()
+	if err != nil {
+		return Config{}, err
 	}
 
 	logLevel, err := parseLogLevel(valueOrDefault("LOG_LEVEL", defaultLogLevel))
@@ -52,6 +67,35 @@ func Load() (Config, error) {
 		DatabaseURL: databaseURL,
 		LogLevel:    logLevel,
 		LogFormat:   logFormat,
+		JWT:         jwtConfig,
+	}, nil
+}
+
+// LoadJWT reads and validates the JWT settings without loading unrelated
+// application configuration.
+func LoadJWT() (JWTConfig, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if strings.TrimSpace(secret) == "" {
+		return JWTConfig{}, errors.New("JWT_SECRET is required")
+	}
+	if len(secret) < minimumJWTSecretBytes {
+		return JWTConfig{}, errors.New("JWT_SECRET must be at least 32 bytes")
+	}
+
+	issuer := strings.TrimSpace(os.Getenv("JWT_ISSUER"))
+	if issuer == "" {
+		return JWTConfig{}, errors.New("JWT_ISSUER is required")
+	}
+
+	audience := strings.TrimSpace(os.Getenv("JWT_AUDIENCE"))
+	if audience == "" {
+		return JWTConfig{}, errors.New("JWT_AUDIENCE is required")
+	}
+
+	return JWTConfig{
+		Secret:   secret,
+		Issuer:   issuer,
+		Audience: audience,
 	}, nil
 }
 

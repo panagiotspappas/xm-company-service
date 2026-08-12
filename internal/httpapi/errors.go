@@ -14,6 +14,7 @@ const (
 	errorCodeCompanyNameConflict  = "COMPANY_NAME_CONFLICT"
 	errorCodeContentTooLarge      = "CONTENT_TOO_LARGE"
 	errorCodeUnsupportedMediaType = "UNSUPPORTED_MEDIA_TYPE"
+	errorCodeUnauthorized         = "UNAUTHORIZED"
 	errorCodeInternal             = "INTERNAL_ERROR"
 )
 

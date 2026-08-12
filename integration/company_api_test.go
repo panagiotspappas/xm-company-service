@@ -27,7 +27,7 @@ func TestCompanyPostAndGetVerticalSlice(t *testing.T) {
 	pool := openIntegrationPool(t)
 	repository := postgresrepository.NewRepository(pool)
 	service := company.NewService(repository, uuid.NewRandom)
-	server := httptest.NewServer(httpapi.NewRouter(service))
+	server := httptest.NewServer(httpapi.NewRouter(service, passThroughAuthentication))
 	t.Cleanup(server.Close)
 	client := server.Client()
 	client.Timeout = integrationOperationTimeout
@@ -290,7 +290,7 @@ func newIntegrationAPI(t *testing.T) integrationAPI {
 	pool := openIntegrationPool(t)
 	repository := postgresrepository.NewRepository(pool)
 	service := company.NewService(repository, uuid.NewRandom)
-	server := httptest.NewServer(httpapi.NewRouter(service))
+	server := httptest.NewServer(httpapi.NewRouter(service, passThroughAuthentication))
 	t.Cleanup(server.Close)
 	client := server.Client()
 	client.Timeout = integrationOperationTimeout
@@ -478,6 +478,10 @@ func doJSONRequest(t *testing.T, client *http.Client, method, url, body string) 
 		t.Fatalf("perform %s request: %v", method, err)
 	}
 	return response
+}
+
+func passThroughAuthentication(next http.Handler) http.Handler {
+	return next
 }
 
 func decodeAndClose(t *testing.T, response *http.Response, target any) {

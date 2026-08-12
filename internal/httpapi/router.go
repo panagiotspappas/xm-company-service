@@ -17,17 +17,20 @@ type CompanyService interface {
 }
 
 // NewRouter constructs the company HTTP API.
-func NewRouter(service CompanyService) http.Handler {
+func NewRouter(service CompanyService, authenticate Middleware) http.Handler {
 	if service == nil {
 		panic("httpapi: company service is required")
+	}
+	if authenticate == nil {
+		panic("httpapi: authentication middleware is required")
 	}
 
 	handler := companyHandler{service: service}
 	router := http.NewServeMux()
-	router.HandleFunc("POST /v1/companies", handler.create)
+	router.Handle("POST /v1/companies", authenticate(http.HandlerFunc(handler.create)))
 	router.HandleFunc("GET /v1/companies/{id}", handler.get)
-	router.HandleFunc("PATCH /v1/companies/{id}", handler.patch)
-	router.HandleFunc("DELETE /v1/companies/{id}", handler.delete)
+	router.Handle("PATCH /v1/companies/{id}", authenticate(http.HandlerFunc(handler.patch)))
+	router.Handle("DELETE /v1/companies/{id}", authenticate(http.HandlerFunc(handler.delete)))
 
 	return router
 }

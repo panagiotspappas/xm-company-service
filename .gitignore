@@ -1,6 +1,7 @@
 # Build output
 /bin/
 /company-service
+/dev-token
 *.exe
 *.test
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/panagiotspappas/xm-company-service/internal/auth"
 	"github.com/panagiotspappas/xm-company-service/internal/company"
 	"github.com/panagiotspappas/xm-company-service/internal/config"
 	"github.com/panagiotspappas/xm-company-service/internal/httpapi"
@@ -49,7 +50,8 @@ func run() error {
 
 	repository := postgresrepository.NewRepository(pool)
 	service := company.NewService(repository, uuid.NewRandom)
-	handler := httpapi.NewRouter(service)
+	tokenValidator := auth.NewValidator(cfg.JWT.Secret, cfg.JWT.Issuer, cfg.JWT.Audience)
+	handler := httpapi.NewRouter(service, httpapi.RequireAuthentication(tokenValidator))
 	server := &http.Server{
 		Addr:    cfg.HTTPAddress,
 		Handler: handler,

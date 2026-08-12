@@ -23,7 +23,7 @@ func TestNewRouterRequiresService(t *testing.T) {
 		}
 	}()
 
-	NewRouter(nil)
+	NewRouter(nil, passThroughAuthentication)
 }
 
 func TestCreateCompany(t *testing.T) {
@@ -56,7 +56,7 @@ func TestCreateCompany(t *testing.T) {
 
 	response := performRequest(
 		t,
-		NewRouter(service),
+		newTestRouter(service),
 		http.MethodPost,
 		"/v1/companies",
 		`{"name":"Acme","amount_of_employees":0,"registered":false,"type":"Corporations"}`,
@@ -118,7 +118,7 @@ func TestCreateCompanyRejectsInvalidBodies(t *testing.T) {
 			}
 			response := performRequest(
 				t,
-				NewRouter(service),
+				newTestRouter(service),
 				http.MethodPost,
 				"/v1/companies",
 				body,
@@ -149,7 +149,7 @@ func TestCreateCompanyContentType(t *testing.T) {
 			service := &fakeCompanyService{}
 			response := performRequest(
 				t,
-				NewRouter(service),
+				newTestRouter(service),
 				http.MethodPost,
 				"/v1/companies",
 				`{}`,
@@ -167,7 +167,7 @@ func TestCreateCompanyRejectsOversizedBody(t *testing.T) {
 	body := `{"name":"` + strings.Repeat("a", int(maxRequestBodyBytes)) + `"}`
 	response := performRequest(
 		t,
-		NewRouter(service),
+		newTestRouter(service),
 		http.MethodPost,
 		"/v1/companies",
 		body,
@@ -214,7 +214,7 @@ func TestCreateCompanyMapsServiceErrors(t *testing.T) {
 			}
 			response := performRequest(
 				t,
-				NewRouter(service),
+				newTestRouter(service),
 				http.MethodPost,
 				"/v1/companies",
 				`{"name":"Acme","amount_of_employees":1,"registered":true,"type":"Corporations"}`,
@@ -240,7 +240,7 @@ func TestGetCompany(t *testing.T) {
 	}
 	response := performRequest(
 		t,
-		NewRouter(service),
+		newTestRouter(service),
 		http.MethodGet,
 		"/v1/companies/"+id.String(),
 		"",
@@ -265,7 +265,7 @@ func TestGetCompanyRejectsInvalidUUID(t *testing.T) {
 			return company.Company{}, nil
 		},
 	}
-	response := performRequest(t, NewRouter(service), http.MethodGet, "/v1/companies/not-a-uuid", "", "")
+	response := performRequest(t, newTestRouter(service), http.MethodGet, "/v1/companies/not-a-uuid", "", "")
 
 	assertAPIError(t, response, http.StatusBadRequest, errorCodeInvalidRequest)
 	if getCalls != 0 {
@@ -305,7 +305,7 @@ func TestGetCompanyMapsServiceErrors(t *testing.T) {
 			}
 			response := performRequest(
 				t,
-				NewRouter(service),
+				newTestRouter(service),
 				http.MethodGet,
 				"/v1/companies/"+uuid.NewString(),
 				"",
@@ -345,7 +345,7 @@ func TestPatchCompany(t *testing.T) {
 	}
 	response := performRequest(
 		t,
-		NewRouter(service),
+		newTestRouter(service),
 		http.MethodPatch,
 		"/v1/companies/"+id.String(),
 		`{"description":"","amount_of_employees":0,"registered":false}`,
@@ -391,7 +391,7 @@ func TestPatchCompanyRejectsInvalidBodies(t *testing.T) {
 			}
 			response := performRequest(
 				t,
-				NewRouter(service),
+				newTestRouter(service),
 				http.MethodPatch,
 				"/v1/companies/"+uuid.NewString(),
 				body,
@@ -420,7 +420,7 @@ func TestPatchCompanyRejectsInvalidContentTypeAndOversizedBody(t *testing.T) {
 			t.Parallel()
 			response := performRequest(
 				t,
-				NewRouter(&fakeCompanyService{}),
+				newTestRouter(&fakeCompanyService{}),
 				http.MethodPatch,
 				"/v1/companies/"+uuid.NewString(),
 				`{}`,
@@ -435,7 +435,7 @@ func TestPatchCompanyRejectsInvalidContentTypeAndOversizedBody(t *testing.T) {
 		body := `{"description":"` + strings.Repeat("a", int(maxRequestBodyBytes)) + `"}`
 		response := performRequest(
 			t,
-			NewRouter(&fakeCompanyService{}),
+			newTestRouter(&fakeCompanyService{}),
 			http.MethodPatch,
 			"/v1/companies/"+uuid.NewString(),
 			body,
@@ -457,7 +457,7 @@ func TestPatchCompanyRejectsInvalidUUID(t *testing.T) {
 	}
 	response := performRequest(
 		t,
-		NewRouter(service),
+		newTestRouter(service),
 		http.MethodPatch,
 		"/v1/companies/not-a-uuid",
 		`{"name":"Other"}`,
@@ -512,7 +512,7 @@ func TestPatchCompanyMapsServiceErrors(t *testing.T) {
 			}
 			response := performRequest(
 				t,
-				NewRouter(service),
+				newTestRouter(service),
 				http.MethodPatch,
 				"/v1/companies/"+uuid.NewString(),
 				`{"name":"Other"}`,
@@ -537,7 +537,7 @@ func TestDeleteCompany(t *testing.T) {
 	}
 	response := performRequest(
 		t,
-		NewRouter(service),
+		newTestRouter(service),
 		http.MethodDelete,
 		"/v1/companies/"+id.String(),
 		"",
@@ -567,7 +567,7 @@ func TestDeleteCompanyErrors(t *testing.T) {
 				return nil
 			},
 		}
-		response := performRequest(t, NewRouter(service), http.MethodDelete, "/v1/companies/invalid", "", "")
+		response := performRequest(t, newTestRouter(service), http.MethodDelete, "/v1/companies/invalid", "", "")
 		assertAPIError(t, response, http.StatusBadRequest, errorCodeInvalidRequest)
 		if deleteCalls != 0 {
 			t.Fatalf("Delete() calls = %d, want 0", deleteCalls)
@@ -599,7 +599,7 @@ func TestDeleteCompanyErrors(t *testing.T) {
 			}
 			response := performRequest(
 				t,
-				NewRouter(service),
+				newTestRouter(service),
 				http.MethodDelete,
 				"/v1/companies/"+uuid.NewString(),
 				"",
@@ -615,6 +615,14 @@ type fakeCompanyService struct {
 	get    func(context.Context, uuid.UUID) (company.Company, error)
 	patch  func(context.Context, uuid.UUID, company.PatchCompanyInput) (company.Company, error)
 	delete func(context.Context, uuid.UUID) error
+}
+
+func newTestRouter(service CompanyService) http.Handler {
+	return NewRouter(service, passThroughAuthentication)
+}
+
+func passThroughAuthentication(next http.Handler) http.Handler {
+	return next
 }
 
 func (service *fakeCompanyService) Create(
