@@ -135,7 +135,7 @@ func TestRouterAuthenticationBoundary(t *testing.T) {
 			next.ServeHTTP(writer, request)
 		})
 	}
-	router := NewRouter(&fakeCompanyService{}, authenticate)
+	router := NewRouter(&fakeCompanyService{}, authenticate, alwaysReadyChecker{})
 	id := uuid.NewString()
 	tests := []struct {
 		method      string
@@ -182,7 +182,7 @@ func TestRouterAuthenticationBoundary(t *testing.T) {
 
 func TestNewRouterRequiresAuthenticationMiddleware(t *testing.T) {
 	assertPanic(t, func() {
-		NewRouter(&fakeCompanyService{}, nil)
+		NewRouter(&fakeCompanyService{}, nil, alwaysReadyChecker{})
 	})
 }
 
@@ -190,6 +190,7 @@ func TestProtectedRoutesAuthenticateBeforeParsingRequests(t *testing.T) {
 	router := NewRouter(
 		&fakeCompanyService{},
 		RequireAuthentication(&fakeTokenValidator{}),
+		alwaysReadyChecker{},
 	)
 	tests := []struct {
 		method string

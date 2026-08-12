@@ -24,7 +24,7 @@ func TestNewRouterRequiresService(t *testing.T) {
 		}
 	}()
 
-	NewRouter(nil, passThroughAuthentication)
+	NewRouter(nil, passThroughAuthentication, alwaysReadyChecker{})
 }
 
 func TestCreateCompany(t *testing.T) {
@@ -687,11 +687,17 @@ type fakeCompanyService struct {
 }
 
 func newTestRouter(service CompanyService) http.Handler {
-	return NewRouter(service, passThroughAuthentication)
+	return NewRouter(service, passThroughAuthentication, alwaysReadyChecker{})
 }
 
 func passThroughAuthentication(next http.Handler) http.Handler {
 	return next
+}
+
+type alwaysReadyChecker struct{}
+
+func (alwaysReadyChecker) Ping(context.Context) error {
+	return nil
 }
 
 func (service *fakeCompanyService) Create(

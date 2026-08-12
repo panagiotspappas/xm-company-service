@@ -51,7 +51,11 @@ func run() error {
 	repository := postgresrepository.NewRepository(pool)
 	service := company.NewService(repository, uuid.NewRandom)
 	tokenValidator := auth.NewValidator(cfg.JWT.Secret, cfg.JWT.Issuer, cfg.JWT.Audience)
-	handler := httpapi.NewRouter(service, httpapi.RequireAuthentication(tokenValidator))
+	handler := httpapi.NewRouter(
+		service,
+		httpapi.RequireAuthentication(tokenValidator),
+		pool,
+	)
 	server := &http.Server{
 		Addr:    cfg.HTTPAddress,
 		Handler: handler,
