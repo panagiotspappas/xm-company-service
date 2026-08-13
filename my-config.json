@@ -1,8 +1,0 @@
-{
-  "http_addr": ":8080",
-  "db_max_conns": 10,
-  "log_level": "INFO",
-  "log_format": "text",
-  "jwt_issuer": "xm-company-service",
-  "jwt_audience": "xm-company-service"
-}

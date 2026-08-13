@@ -5,6 +5,9 @@
 *.exe
 *.test
 
+# Local optional configuration
+/my-config.json
+
 # Test and coverage output
 *.out
 coverage.*
