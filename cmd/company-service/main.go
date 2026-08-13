@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,6 +34,7 @@ func run() error {
 	}
 
 	configureLogger(cfg)
+	logger := slog.Default()
 
 	startupContext, cancelStartup := context.WithTimeout(context.Background(), databaseStartupTimeout)
 	defer cancelStartup()
@@ -57,19 +59,29 @@ func run() error {
 	repository := postgresrepository.NewRepository(pool)
 	service := company.NewService(repository, uuid.NewRandom)
 	tokenValidator := auth.NewValidator(cfg.JWT.Secret, cfg.JWT.Issuer, cfg.JWT.Audience)
-	handler := httpapi.NewRouter(
+	router := httpapi.NewRouter(
 		service,
 		httpapi.RequireAuthentication(tokenValidator),
 		pool,
 	)
-	server := &http.Server{
-		Addr:    cfg.HTTPAddress,
-		Handler: handler,
-	}
+	server := newHTTPServer(cfg.HTTPAddress, router, logger)
 
-	slog.Info("HTTP server starting", "address", cfg.HTTPAddress)
-	if err := server.ListenAndServe(); err != nil {
-		return fmt.Errorf("serve HTTP: %w", err)
+	signalContext, stopSignals := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stopSignals()
+
+	logger.Info("HTTP server starting", "address", cfg.HTTPAddress)
+	if err := serveHTTP(
+		server,
+		signalContext,
+		stopSignals,
+		logger,
+		shutdownGracePeriod,
+	); err != nil {
+		return err
 	}
 
 	return nil

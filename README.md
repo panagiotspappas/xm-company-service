@@ -2,7 +2,7 @@
 
 A production-oriented Go service for creating, retrieving, partially updating, and deleting companies.
 
-PostgreSQL persistence and JWT authentication are implemented. GET is public; POST, PATCH, and DELETE require a valid Bearer token.
+PostgreSQL persistence, JWT authentication, and production HTTP behavior are implemented. GET is public; POST, PATCH, and DELETE require a valid Bearer token.
 
 ## Architecture
 
@@ -33,6 +33,7 @@ The application reads actual environment variables:
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `DATABASE_URL` | Yes | — | PostgreSQL connection URL |
+| `DB_MAX_CONNS` | No | `10` | Maximum PostgreSQL pool connections; must be a positive 32-bit integer |
 | `HTTP_ADDR` | No | `:8080` | HTTP listen address |
 | `LOG_LEVEL` | No | `INFO` | `DEBUG`, `INFO`, `WARN`, or `ERROR` |
 | `LOG_FORMAT` | No | `text` | `text` or `json` |
@@ -139,6 +140,34 @@ curl -i \
   http://localhost:8080/v1/companies/<uuid>
 ```
 
+## Operational HTTP behavior
+
+Liveness is independent of PostgreSQL. Readiness checks PostgreSQL with a one-second deadline:
+
+```bash
+curl -i http://localhost:8080/health/live
+curl -i http://localhost:8080/health/ready
+```
+
+Both return `{"status":"ok"}` when healthy. Readiness returns the generic `503 SERVICE_UNAVAILABLE` error response when PostgreSQL cannot be reached.
+
+Every application-handled HTTP response includes `X-Request-ID`. A valid, non-nil UUID supplied in exactly one `X-Request-ID` header is accepted and returned in canonical form; otherwise the service generates one. Structured completion logs include the same request ID, method, path, status, and duration without logging query strings or authorization values.
+
+The HTTP server uses these fixed production limits:
+
+| Setting | Value |
+| --- | ---: |
+| Header read timeout | 5s |
+| Request read timeout | 10s |
+| Application request deadline | 15s |
+| Response write timeout | 20s |
+| Idle connection timeout | 60s |
+| Graceful shutdown period | 20s |
+
+Application deadline expiration returns `503 SERVICE_UNAVAILABLE` when a response can still be written. Request contexts propagate through the service and repository to PostgreSQL, including while waiting for an available pooled connection.
+
+The first `SIGINT` or `SIGTERM` restores default signal handling and begins bounded graceful shutdown. The service stops accepting new HTTP traffic, drains requests for up to 20 seconds, and force-closes HTTP if draining fails. PostgreSQL remains available until managed HTTP termination completes. A second termination signal uses the restored operating-system behavior and may end the process immediately without deferred cleanup.
+
 ## Tests
 
 Run database-independent unit and handler tests:
@@ -167,4 +196,4 @@ Database-backed tests use `TEST_DATABASE_URL`; the Make target defaults it to th
 - PATCH is a partial update.
 - Description is non-null internally; JSON `null` is rejected.
 
-RBAC, ownership checks, principal propagation, refresh tokens, identity-provider discovery, production HTTP middleware, health endpoints, graceful shutdown, the application Docker image, and optional mutation events are deferred to later phases.
+RBAC, ownership checks, principal propagation, refresh tokens, identity-provider discovery, the application Docker image, and optional mutation events are deferred to later phases.
