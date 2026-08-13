@@ -1,4 +1,6 @@
-.PHONY: build run test dev-token db-up db-down migrate-up migrate-down test-integration
+.DEFAULT_GOAL := help
+
+.PHONY: help build run test dev-token db-up db-down migrate-up migrate-down test-integration
 
 BIN_DIR := bin
 BINARY := $(BIN_DIR)/company-service
@@ -9,6 +11,19 @@ LOCAL_DATABASE_URL := postgres://company:company@localhost:5432/company_service?
 DATABASE_URL ?= $(LOCAL_DATABASE_URL)
 TEST_DATABASE_URL ?= $(LOCAL_DATABASE_URL)
 DEV_TOKEN_TTL ?= 1h
+
+help:
+	@printf '%s\n' \
+		'Available commands:' \
+		'  make build              Build the company-service binary' \
+		'  make run                Run the company service' \
+		'  make test               Run unit tests' \
+		'  make dev-token          Generate a development JWT' \
+		'  make db-up              Start PostgreSQL' \
+		'  make db-down            Stop the Docker Compose environment' \
+		'  make migrate-up         Apply database migrations' \
+		'  make migrate-down       Roll back one migration' \
+		'  make test-integration   Run PostgreSQL integration tests'
 
 build:
 	mkdir -p $(BIN_DIR)
