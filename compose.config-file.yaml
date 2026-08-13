@@ -1,0 +1,12 @@
+services:
+  company-service:
+    volumes:
+      - ./config.docker-test.json:/app/config.json:ro
+    environment:
+      CONFIG_FILE: /app/config.json
+      HTTP_ADDR: ""
+      DB_MAX_CONNS: ""
+      LOG_LEVEL: ""
+      LOG_FORMAT: ""
+      JWT_ISSUER: ""
+      JWT_AUDIENCE: ""
