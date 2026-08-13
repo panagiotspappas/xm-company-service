@@ -42,7 +42,7 @@ The service verifies tokens but does not issue them or implement login. See the 
 | `make stack-logs` | Interactively follow `company-service` logs |
 | `make test` | Run database-independent tests |
 | `make vet` | Run `go vet` |
-| `make lint` | Run the pinned conservative linter set |
+| `make lint` | Run the pinned linter set |
 | `make build` | Build the service binary |
 | `make check` | Run tests, vet, lint, and build |
 | `make test-integration` | Run repository and API suites against real PostgreSQL |

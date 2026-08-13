@@ -267,7 +267,7 @@ The base Compose configuration continues to provide the internal `DATABASE_URL`.
 | --- | --- |
 | `make test` | Database-independent unit and handler tests |
 | `make vet` | `go vet ./...` |
-| `make lint` | Pinned conservative linters, including integration-tagged code |
+| `make lint` | Pinned linters, including integration-tagged code |
 | `make build` | Build `bin/company-service` |
 | `make check` | Test, vet, lint, and build; no database required |
 | `make test-integration` | Start real PostgreSQL, migrate it, and run repository/API integration suites |
