@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -46,6 +48,7 @@ func (repository *Repository) Create(ctx context.Context, value company.Company)
 		)
 		VALUES ($1, $2, $3, $4, $5, $6)`
 
+	started := time.Now()
 	_, err := repository.pool.Exec(
 		ctx,
 		query,
@@ -56,6 +59,7 @@ func (repository *Repository) Create(ctx context.Context, value company.Company)
 		value.Registered,
 		string(value.Type),
 	)
+	slog.DebugContext(ctx, "database operation completed", "operation", "create_company", "company_id", value.ID, "duration", time.Since(started))
 	if err != nil {
 		if isNameConflict(err) {
 			return fmt.Errorf("insert company: %w", company.ErrNameConflict)
@@ -81,6 +85,7 @@ func (repository *Repository) GetByID(ctx context.Context, id uuid.UUID) (compan
 
 	var result company.Company
 	var companyType string
+	started := time.Now()
 	err := repository.pool.QueryRow(ctx, query, id).Scan(
 		&result.ID,
 		&result.Name,
@@ -89,6 +94,7 @@ func (repository *Repository) GetByID(ctx context.Context, id uuid.UUID) (compan
 		&result.Registered,
 		&companyType,
 	)
+	slog.DebugContext(ctx, "database operation completed", "operation", "get_company", "company_id", id, "duration", time.Since(started))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return company.Company{}, fmt.Errorf("select company: %w", company.ErrNotFound)
@@ -112,6 +118,7 @@ func (repository *Repository) Update(ctx context.Context, value company.Company)
 			type = $5
 		WHERE id = $6`
 
+	started := time.Now()
 	commandTag, err := repository.pool.Exec(
 		ctx,
 		query,
@@ -122,6 +129,7 @@ func (repository *Repository) Update(ctx context.Context, value company.Company)
 		string(value.Type),
 		value.ID,
 	)
+	slog.DebugContext(ctx, "database operation completed", "operation", "update_company", "company_id", value.ID, "duration", time.Since(started))
 	if err != nil {
 		if isNameConflict(err) {
 			return fmt.Errorf("update company: %w", company.ErrNameConflict)
@@ -139,7 +147,9 @@ func (repository *Repository) Update(ctx context.Context, value company.Company)
 func (repository *Repository) Delete(ctx context.Context, id uuid.UUID) error {
 	const query = `DELETE FROM companies WHERE id = $1`
 
+	started := time.Now()
 	commandTag, err := repository.pool.Exec(ctx, query, id)
+	slog.DebugContext(ctx, "database operation completed", "operation", "delete_company", "company_id", id, "duration", time.Since(started))
 	if err != nil {
 		return fmt.Errorf("delete company: %w", err)
 	}

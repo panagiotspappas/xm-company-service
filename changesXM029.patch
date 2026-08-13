@@ -1,0 +1,112 @@
+diff --git a/cmd/company-service/main.go b/cmd/company-service/main.go
+index 989d0b4..40e95ee 100644
+--- a/cmd/company-service/main.go
++++ b/cmd/company-service/main.go
+@@ -39,13 +39,14 @@ func run() error {
+ 	startupContext, cancelStartup := context.WithTimeout(context.Background(), databaseStartupTimeout)
+ 	defer cancelStartup()
+ 
++	databaseStarted := time.Now()
+ 	pool, err := openDatabase(startupContext, cfg)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	defer pool.Close()
+ 
+-	slog.Info("database connection established")
++	slog.Info("database connection established", "duration", time.Since(databaseStarted), "max_conns", cfg.DatabaseMaxConns)
+ 
+ 	repository := postgresrepository.NewRepository(pool)
+ 	service := company.NewService(repository, uuid.NewRandom)
+diff --git a/internal/httpapi/errors.go b/internal/httpapi/errors.go
+index 351b870..efade13 100644
+--- a/internal/httpapi/errors.go
++++ b/internal/httpapi/errors.go
+@@ -4,6 +4,7 @@ import (
+ 	"context"
+ 	"encoding/json"
+ 	"errors"
++	"log/slog"
+ 	"net/http"
+ 
+ 	"github.com/panagiotspappas/xm-company-service/internal/company"
+@@ -40,6 +41,8 @@ func writeServiceError(writer http.ResponseWriter, ctx context.Context, err erro
+ 	case errors.Is(err, company.ErrNameConflict):
+ 		writeError(writer, http.StatusConflict, errorCodeCompanyNameConflict, "company name conflict")
+ 	default:
++		requestID, _ := RequestIDFromContext(ctx)
++		slog.ErrorContext(ctx, "http request failed", "request_id", requestID, "error", err)
+ 		writeError(writer, http.StatusInternalServerError, errorCodeInternal, "internal server error")
+ 	}
+ }
+diff --git a/internal/postgres/company_repository.go b/internal/postgres/company_repository.go
+index 5c0869d..c41b559 100644
+--- a/internal/postgres/company_repository.go
++++ b/internal/postgres/company_repository.go
+@@ -4,6 +4,8 @@ import (
+ 	"context"
+ 	"errors"
+ 	"fmt"
++	"log/slog"
++	"time"
+ 
+ 	"github.com/google/uuid"
+ 	"github.com/jackc/pgx/v5"
+@@ -46,6 +48,7 @@ func (repository *Repository) Create(ctx context.Context, value company.Company)
+ 		)
+ 		VALUES ($1, $2, $3, $4, $5, $6)`
+ 
++	started := time.Now()
+ 	_, err := repository.pool.Exec(
+ 		ctx,
+ 		query,
+@@ -56,6 +59,7 @@ func (repository *Repository) Create(ctx context.Context, value company.Company)
+ 		value.Registered,
+ 		string(value.Type),
+ 	)
++	slog.DebugContext(ctx, "database operation completed", "operation", "create_company", "company_id", value.ID, "duration", time.Since(started))
+ 	if err != nil {
+ 		if isNameConflict(err) {
+ 			return fmt.Errorf("insert company: %w", company.ErrNameConflict)
+@@ -81,6 +85,7 @@ func (repository *Repository) GetByID(ctx context.Context, id uuid.UUID) (compan
+ 
+ 	var result company.Company
+ 	var companyType string
++	started := time.Now()
+ 	err := repository.pool.QueryRow(ctx, query, id).Scan(
+ 		&result.ID,
+ 		&result.Name,
+@@ -89,6 +94,7 @@ func (repository *Repository) GetByID(ctx context.Context, id uuid.UUID) (compan
+ 		&result.Registered,
+ 		&companyType,
+ 	)
++	slog.DebugContext(ctx, "database operation completed", "operation", "get_company", "company_id", id, "duration", time.Since(started))
+ 	if err != nil {
+ 		if errors.Is(err, pgx.ErrNoRows) {
+ 			return company.Company{}, fmt.Errorf("select company: %w", company.ErrNotFound)
+@@ -112,6 +118,7 @@ func (repository *Repository) Update(ctx context.Context, value company.Company)
+ 			type = $5
+ 		WHERE id = $6`
+ 
++	started := time.Now()
+ 	commandTag, err := repository.pool.Exec(
+ 		ctx,
+ 		query,
+@@ -122,6 +129,7 @@ func (repository *Repository) Update(ctx context.Context, value company.Company)
+ 		string(value.Type),
+ 		value.ID,
+ 	)
++	slog.DebugContext(ctx, "database operation completed", "operation", "update_company", "company_id", value.ID, "duration", time.Since(started))
+ 	if err != nil {
+ 		if isNameConflict(err) {
+ 			return fmt.Errorf("update company: %w", company.ErrNameConflict)
+@@ -139,7 +147,9 @@ func (repository *Repository) Update(ctx context.Context, value company.Company)
+ func (repository *Repository) Delete(ctx context.Context, id uuid.UUID) error {
+ 	const query = `DELETE FROM companies WHERE id = $1`
+ 
++	started := time.Now()
+ 	commandTag, err := repository.pool.Exec(ctx, query, id)
++	slog.DebugContext(ctx, "database operation completed", "operation", "delete_company", "company_id", id, "duration", time.Since(started))
+ 	if err != nil {
+ 		return fmt.Errorf("delete company: %w", err)
+ 	}

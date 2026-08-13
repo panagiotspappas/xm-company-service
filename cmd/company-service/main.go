@@ -39,13 +39,14 @@ func run() error {
 	startupContext, cancelStartup := context.WithTimeout(context.Background(), databaseStartupTimeout)
 	defer cancelStartup()
 
+	databaseStarted := time.Now()
 	pool, err := openDatabase(startupContext, cfg)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
 
-	slog.Info("database connection established")
+	slog.Info("database connection established", "duration", time.Since(databaseStarted), "max_conns", cfg.DatabaseMaxConns)
 
 	repository := postgresrepository.NewRepository(pool)
 	service := company.NewService(repository, uuid.NewRandom)

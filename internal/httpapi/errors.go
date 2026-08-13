@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/panagiotspappas/xm-company-service/internal/company"
@@ -40,6 +41,8 @@ func writeServiceError(writer http.ResponseWriter, ctx context.Context, err erro
 	case errors.Is(err, company.ErrNameConflict):
 		writeError(writer, http.StatusConflict, errorCodeCompanyNameConflict, "company name conflict")
 	default:
+		requestID, _ := RequestIDFromContext(ctx)
+		slog.ErrorContext(ctx, "http request failed", "request_id", requestID, "error", err)
 		writeError(writer, http.StatusInternalServerError, errorCodeInternal, "internal server error")
 	}
 }
