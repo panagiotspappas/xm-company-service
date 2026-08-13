@@ -44,34 +44,59 @@ type JWTConfig struct {
 	Audience string
 }
 
-// Load reads and validates configuration from environment variables.
+// Load reads and validates configuration from the optional file and environment.
 func Load() (Config, error) {
+	fileValues, err := loadFileConfig()
+	if err != nil {
+		return Config{}, err
+	}
+
 	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if databaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
 	}
-	databaseMaxConns, err := parseDatabaseMaxConns(os.Getenv("DB_MAX_CONNS"))
+
+	databaseMaxConnsValue := ""
+	if fileValues.DatabaseMaxConns.set {
+		databaseMaxConnsValue = strconv.FormatInt(int64(fileValues.DatabaseMaxConns.value), 10)
+	}
+	if environmentValue := strings.TrimSpace(os.Getenv("DB_MAX_CONNS")); environmentValue != "" {
+		databaseMaxConnsValue = environmentValue
+	}
+	databaseMaxConns, err := parseDatabaseMaxConns(databaseMaxConnsValue)
 	if err != nil {
 		return Config{}, err
 	}
 
-	jwtConfig, err := LoadJWT()
+	jwtConfig, err := loadJWT(fileValues)
 	if err != nil {
 		return Config{}, err
 	}
 
-	logLevel, err := parseLogLevel(valueOrDefault("LOG_LEVEL", defaultLogLevel))
+	logLevel, err := parseLogLevel(mergedString(
+		defaultLogLevel,
+		fileValues.LogLevel,
+		"LOG_LEVEL",
+	))
 	if err != nil {
 		return Config{}, err
 	}
 
-	logFormat, err := parseLogFormat(valueOrDefault("LOG_FORMAT", defaultLogFormat))
+	logFormat, err := parseLogFormat(mergedString(
+		defaultLogFormat,
+		fileValues.LogFormat,
+		"LOG_FORMAT",
+	))
 	if err != nil {
 		return Config{}, err
 	}
 
 	return Config{
-		HTTPAddress:      valueOrDefault("HTTP_ADDR", defaultHTTPAddress),
+		HTTPAddress: mergedString(
+			defaultHTTPAddress,
+			fileValues.HTTPAddress,
+			"HTTP_ADDR",
+		),
 		DatabaseURL:      databaseURL,
 		DatabaseMaxConns: databaseMaxConns,
 		LogLevel:         logLevel,
@@ -83,6 +108,15 @@ func Load() (Config, error) {
 // LoadJWT reads and validates the JWT settings without loading unrelated
 // application configuration.
 func LoadJWT() (JWTConfig, error) {
+	fileValues, err := loadFileConfig()
+	if err != nil {
+		return JWTConfig{}, err
+	}
+
+	return loadJWT(fileValues)
+}
+
+func loadJWT(fileValues fileConfig) (JWTConfig, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if strings.TrimSpace(secret) == "" {
 		return JWTConfig{}, errors.New("JWT_SECRET is required")
@@ -91,12 +125,12 @@ func LoadJWT() (JWTConfig, error) {
 		return JWTConfig{}, errors.New("JWT_SECRET must be at least 32 bytes")
 	}
 
-	issuer := strings.TrimSpace(os.Getenv("JWT_ISSUER"))
+	issuer := mergedString("", fileValues.JWTIssuer, "JWT_ISSUER")
 	if issuer == "" {
 		return JWTConfig{}, errors.New("JWT_ISSUER is required")
 	}
 
-	audience := strings.TrimSpace(os.Getenv("JWT_AUDIENCE"))
+	audience := mergedString("", fileValues.JWTAudience, "JWT_AUDIENCE")
 	if audience == "" {
 		return JWTConfig{}, errors.New("JWT_AUDIENCE is required")
 	}
@@ -108,10 +142,15 @@ func LoadJWT() (JWTConfig, error) {
 	}, nil
 }
 
-func valueOrDefault(name, defaultValue string) string {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return defaultValue
+func mergedString(defaultValue string, fileValue optional[string], environmentName string) string {
+	value := defaultValue
+	if fileValue.set {
+		if configuredValue := strings.TrimSpace(fileValue.value); configuredValue != "" {
+			value = configuredValue
+		}
+	}
+	if environmentValue := strings.TrimSpace(os.Getenv(environmentName)); environmentValue != "" {
+		value = environmentValue
 	}
 
 	return value
