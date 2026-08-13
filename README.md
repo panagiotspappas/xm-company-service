@@ -1,8 +1,7 @@
 # XM Company Service
 
 A production-oriented Go implementation of the XM company-management exercise. It provides a REST API backed by PostgreSQL,
-JWT-protected mutations, explicit database migrations, production HTTP safeguards, Docker packaging, integration tests,
-conservative linting, and GitHub Actions CI.
+JWT-protected mutations, explicit database migrations, production HTTP safeguards, Docker packaging, integration tests, linting, and GitHub Actions CI.
 
 ## Getting Started
 
@@ -71,3 +70,4 @@ GitHub Actions runs `make check`, real PostgreSQL integration tests, a productio
 - [Setup and Run Instructions](docs/setup-and-run.md)
 - [API Contract](docs/api-contract.md)
 - [Assumptions and Design Decisions](docs/assumptions-and-design-decisions.md)
+- [Docker Acceptance Test Report](docs/docker-acceptance-test-report.md)
