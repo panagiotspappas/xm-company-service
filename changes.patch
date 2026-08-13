@@ -1,0 +1,103 @@
+diff --git a/cmd/company-service/main.go b/cmd/company-service/main.go
+index da80528..989d0b4 100644
+--- a/cmd/company-service/main.go
++++ b/cmd/company-service/main.go
+@@ -39,21 +39,12 @@ func run() error {
+ 	startupContext, cancelStartup := context.WithTimeout(context.Background(), databaseStartupTimeout)
+ 	defer cancelStartup()
+ 
+-	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+-	if err != nil {
+-		return fmt.Errorf("parse PostgreSQL pool configuration: %w", err)
+-	}
+-	poolConfig.MaxConns = cfg.DatabaseMaxConns
+-
+-	pool, err := pgxpool.NewWithConfig(startupContext, poolConfig)
++	pool, err := openDatabase(startupContext, cfg)
+ 	if err != nil {
+-		return fmt.Errorf("create PostgreSQL pool: %w", err)
++		return err
+ 	}
+ 	defer pool.Close()
+ 
+-	if err := pool.Ping(startupContext); err != nil {
+-		return fmt.Errorf("ping PostgreSQL: %w", err)
+-	}
+ 	slog.Info("database connection established")
+ 
+ 	repository := postgresrepository.NewRepository(pool)
+@@ -87,6 +78,27 @@ func run() error {
+ 	return nil
+ }
+ 
++func openDatabase(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {
++	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
++	if err != nil {
++		return nil, fmt.Errorf("parse PostgreSQL pool configuration: %w", err)
++	}
++
++	poolConfig.MaxConns = cfg.DatabaseMaxConns
++
++	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
++	if err != nil {
++		return nil, fmt.Errorf("create PostgreSQL pool: %w", err)
++	}
++
++	if err := pool.Ping(ctx); err != nil {
++		pool.Close()
++		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
++	}
++
++	return pool, nil
++}
++
+ func configureLogger(cfg config.Config) {
+ 	options := &slog.HandlerOptions{
+ 		Level:     cfg.LogLevel,
+diff --git a/cmd/company-service/server.go b/cmd/company-service/server.go
+index 3a4adb4..e931288 100644
+--- a/cmd/company-service/server.go
++++ b/cmd/company-service/server.go
+@@ -28,13 +28,17 @@ type httpServer interface {
+ }
+ 
+ func newHTTPServer(address string, router http.Handler, logger *slog.Logger) *http.Server {
+-	handler := httpapi.RequestID(uuid.New)(
+-		httpapi.RequestLogger(logger)(
+-			httpapi.RecoverPanics(logger)(
+-				httpapi.RequestTimeout(applicationRequestTimeout)(router),
+-			),
+-		),
+-	)
++	timeoutMiddleware := httpapi.RequestTimeout(applicationRequestTimeout)
++	timeoutHandler := timeoutMiddleware(router)
++
++	recoveryMiddleware := httpapi.RecoverPanics(logger)
++	recoveryHandler := recoveryMiddleware(timeoutHandler)
++
++	loggingMiddleware := httpapi.RequestLogger(logger)
++	loggingHandler := loggingMiddleware(recoveryHandler)
++
++	requestIDMiddleware := httpapi.RequestID(uuid.New)
++	handler := requestIDMiddleware(loggingHandler)
+ 
+ 	return &http.Server{
+ 		Addr:              address,
+diff --git a/internal/httpapi/router.go b/internal/httpapi/router.go
+index 6a04c98..8f3da36 100644
+--- a/internal/httpapi/router.go
++++ b/internal/httpapi/router.go
+@@ -35,10 +35,10 @@ func NewRouter(
+ 	companies := companyHandler{service: service}
+ 	health := healthHandler{readiness: readiness, timeout: readinessTimeout}
+ 	router := http.NewServeMux()
+-	router.HandleFunc("GET /health/live", health.live)
+-	router.HandleFunc("GET /health/ready", health.ready)
++	router.Handle("GET /health/live", http.HandlerFunc(health.live))
++	router.Handle("GET /health/ready", http.HandlerFunc(health.ready))
+ 	router.Handle("POST /v1/companies", authenticate(http.HandlerFunc(companies.create)))
+-	router.HandleFunc("GET /v1/companies/{id}", companies.get)
++	router.Handle("GET /v1/companies/{id}", http.HandlerFunc(companies.get))
+ 	router.Handle("PATCH /v1/companies/{id}", authenticate(http.HandlerFunc(companies.patch)))
+ 	router.Handle("DELETE /v1/companies/{id}", authenticate(http.HandlerFunc(companies.delete)))
+ 

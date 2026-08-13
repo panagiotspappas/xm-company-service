@@ -28,13 +28,17 @@ type httpServer interface {
 }
 
 func newHTTPServer(address string, router http.Handler, logger *slog.Logger) *http.Server {
-	handler := httpapi.RequestID(uuid.New)(
-		httpapi.RequestLogger(logger)(
-			httpapi.RecoverPanics(logger)(
-				httpapi.RequestTimeout(applicationRequestTimeout)(router),
-			),
-		),
-	)
+	timeoutMiddleware := httpapi.RequestTimeout(applicationRequestTimeout)
+	timeoutHandler := timeoutMiddleware(router)
+
+	recoveryMiddleware := httpapi.RecoverPanics(logger)
+	recoveryHandler := recoveryMiddleware(timeoutHandler)
+
+	loggingMiddleware := httpapi.RequestLogger(logger)
+	loggingHandler := loggingMiddleware(recoveryHandler)
+
+	requestIDMiddleware := httpapi.RequestID(uuid.New)
+	handler := requestIDMiddleware(loggingHandler)
 
 	return &http.Server{
 		Addr:              address,

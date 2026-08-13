@@ -39,21 +39,12 @@ func run() error {
 	startupContext, cancelStartup := context.WithTimeout(context.Background(), databaseStartupTimeout)
 	defer cancelStartup()
 
-	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	pool, err := openDatabase(startupContext, cfg)
 	if err != nil {
-		return fmt.Errorf("parse PostgreSQL pool configuration: %w", err)
-	}
-	poolConfig.MaxConns = cfg.DatabaseMaxConns
-
-	pool, err := pgxpool.NewWithConfig(startupContext, poolConfig)
-	if err != nil {
-		return fmt.Errorf("create PostgreSQL pool: %w", err)
+		return err
 	}
 	defer pool.Close()
 
-	if err := pool.Ping(startupContext); err != nil {
-		return fmt.Errorf("ping PostgreSQL: %w", err)
-	}
 	slog.Info("database connection established")
 
 	repository := postgresrepository.NewRepository(pool)
@@ -85,6 +76,27 @@ func run() error {
 	}
 
 	return nil
+}
+
+func openDatabase(ctx context.Context, cfg config.Config) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse PostgreSQL pool configuration: %w", err)
+	}
+
+	poolConfig.MaxConns = cfg.DatabaseMaxConns
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create PostgreSQL pool: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
+	}
+
+	return pool, nil
 }
 
 func configureLogger(cfg config.Config) {

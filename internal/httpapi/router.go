@@ -35,10 +35,10 @@ func NewRouter(
 	companies := companyHandler{service: service}
 	health := healthHandler{readiness: readiness, timeout: readinessTimeout}
 	router := http.NewServeMux()
-	router.HandleFunc("GET /health/live", health.live)
-	router.HandleFunc("GET /health/ready", health.ready)
+	router.Handle("GET /health/live", http.HandlerFunc(health.live))
+	router.Handle("GET /health/ready", http.HandlerFunc(health.ready))
 	router.Handle("POST /v1/companies", authenticate(http.HandlerFunc(companies.create)))
-	router.HandleFunc("GET /v1/companies/{id}", companies.get)
+	router.Handle("GET /v1/companies/{id}", http.HandlerFunc(companies.get))
 	router.Handle("PATCH /v1/companies/{id}", authenticate(http.HandlerFunc(companies.patch)))
 	router.Handle("DELETE /v1/companies/{id}", authenticate(http.HandlerFunc(companies.delete)))
 
