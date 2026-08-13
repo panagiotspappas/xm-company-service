@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Run checks
+        run: make check
+
+      - name: Run PostgreSQL integration tests
+        run: make test-integration
+
+      - name: Build production Docker image
+        run: docker build -t xm-company-service .
+
+      - name: Validate Docker Compose configuration
+        run: docker compose config
+
+      - name: Clean up Docker Compose
+        if: always()
+        run: docker compose down -v
