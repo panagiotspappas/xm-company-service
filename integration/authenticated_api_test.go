@@ -251,7 +251,7 @@ func assertAuthenticationFailure(t *testing.T, response *http.Response) {
 	t.Helper()
 
 	if got := response.Header.Get("WWW-Authenticate"); got != "Bearer" {
-		response.Body.Close()
+		closeResponseBody(t, response)
 		t.Fatalf("WWW-Authenticate = %q, want Bearer", got)
 	}
 	assertIntegrationAPIError(t, response, http.StatusUnauthorized, "UNAUTHORIZED")

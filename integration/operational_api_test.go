@@ -15,7 +15,7 @@ func TestReadinessReportsPostgresAvailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET readiness: %v", err)
 	}
-	defer response.Body.Close()
+	defer closeResponseBody(t, response)
 
 	if response.StatusCode != http.StatusOK {
 		t.Fatalf("readiness status = %d, want %d", response.StatusCode, http.StatusOK)

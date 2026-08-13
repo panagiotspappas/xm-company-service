@@ -60,7 +60,7 @@ func TestGenerateTokenClaimsAndLifetime(t *testing.T) {
 	if claims.IssuedAt == nil || claims.ExpiresAt == nil {
 		t.Fatal("generated token is missing iat or exp")
 	}
-	if got := claims.ExpiresAt.Time.Sub(claims.IssuedAt.Time); got != lifetime {
+	if got := claims.ExpiresAt.Sub(claims.IssuedAt.Time); got != lifetime {
 		t.Fatalf("exp - iat = %s, want %s", got, lifetime)
 	}
 }

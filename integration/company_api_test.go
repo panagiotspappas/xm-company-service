@@ -74,7 +74,7 @@ func TestCompanyPostAndGetVerticalSlice(t *testing.T) {
 	}
 
 	duplicateResponse := doJSONRequest(t, client, http.MethodPost, server.URL+"/v1/companies", createBody)
-	defer duplicateResponse.Body.Close()
+	defer closeResponseBody(t, duplicateResponse)
 	if duplicateResponse.StatusCode != http.StatusConflict {
 		body, _ := io.ReadAll(duplicateResponse.Body)
 		t.Fatalf("duplicate POST status = %d, want %d; body = %s", duplicateResponse.StatusCode, http.StatusConflict, body)
@@ -87,7 +87,7 @@ func TestCompanyPostAndGetVerticalSlice(t *testing.T) {
 		server.URL+"/v1/companies/"+uuid.NewString(),
 		"",
 	)
-	defer missingResponse.Body.Close()
+	defer closeResponseBody(t, missingResponse)
 	if missingResponse.StatusCode != http.StatusNotFound {
 		body, _ := io.ReadAll(missingResponse.Body)
 		t.Fatalf("missing GET status = %d, want %d; body = %s", missingResponse.StatusCode, http.StatusNotFound, body)
@@ -242,7 +242,7 @@ func TestDeleteCompanyRemovesPersistedCompany(t *testing.T) {
 		api.baseURL+"/v1/companies/"+created.ID.String(),
 		"",
 	)
-	defer deleteResponse.Body.Close()
+	defer closeResponseBody(t, deleteResponse)
 	if deleteResponse.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(deleteResponse.Body)
 		t.Fatalf("DELETE status = %d, want %d; body = %s", deleteResponse.StatusCode, http.StatusNoContent, body)
@@ -400,7 +400,7 @@ func assertCompanyResponse(t *testing.T, got, want companyAPIResponse) {
 
 func assertIntegrationAPIError(t *testing.T, response *http.Response, status int, code string) {
 	t.Helper()
-	defer response.Body.Close()
+	defer closeResponseBody(t, response)
 
 	if response.StatusCode != status {
 		body, _ := io.ReadAll(response.Body)
@@ -486,7 +486,7 @@ func passThroughAuthentication(next http.Handler) http.Handler {
 
 func decodeAndClose(t *testing.T, response *http.Response, target any) {
 	t.Helper()
-	defer response.Body.Close()
+	defer closeResponseBody(t, response)
 	if err := json.NewDecoder(response.Body).Decode(target); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -494,10 +494,17 @@ func decodeAndClose(t *testing.T, response *http.Response, target any) {
 
 func readAndClose(t *testing.T, response *http.Response) string {
 	t.Helper()
-	defer response.Body.Close()
+	defer closeResponseBody(t, response)
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
 		t.Fatalf("read response: %v", err)
 	}
 	return string(body)
+}
+
+func closeResponseBody(t *testing.T, response *http.Response) {
+	t.Helper()
+	if err := response.Body.Close(); err != nil {
+		t.Errorf("close response body: %v", err)
+	}
 }
