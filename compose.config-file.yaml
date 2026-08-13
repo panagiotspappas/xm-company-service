@@ -1,12 +1,9 @@
 services:
   company-service:
     volumes:
-      - ./config.docker-test.json:/app/config.json:ro
+      - type: bind
+        source: ${CONFIG_FILE:?CONFIG_FILE must name a host configuration file}
+        target: /app/config.json
+        read_only: true
     environment:
       CONFIG_FILE: /app/config.json
-      HTTP_ADDR: ""
-      DB_MAX_CONNS: ""
-      LOG_LEVEL: ""
-      LOG_FORMAT: ""
-      JWT_ISSUER: ""
-      JWT_AUDIENCE: ""

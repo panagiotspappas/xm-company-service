@@ -58,8 +58,6 @@ The migration container should show a successful exit, while PostgreSQL and the 
 
 ### Generate a development token
 
-### Generate a development token
-
 Generate a one-hour HS256 token using the exported secret, issuer, and audience:
 
 ```bash
@@ -174,12 +172,6 @@ make run
 http://localhost:8080
 ```
 
-`make run` stays in the foreground and serves the API at:
-
-```text
-http://localhost:8080
-```
-
 Leave this terminal running.
 
 Open a second terminal in the repository root and export the same JWT configuration used by the running service:
@@ -213,10 +205,12 @@ The PostgreSQL named volume is preserved. `db-down` does not intentionally tear 
 Configuration precedence is:
 
 ```text
-built-in defaults
-→ optional CONFIG_FILE
-→ nonblank environment variables
+nonblank CONFIG_FILE value
+→ otherwise nonblank environment value
+→ otherwise built-in default
 ```
+
+For string settings, a blank or whitespace-only value in the configuration file is treated as absent and falls back to the environment or built-in default.
 
 | Environment variable | Required | Default | Source rules |
 | --- | --- | --- | --- |
@@ -247,47 +241,25 @@ The JSON decoder rejects unreadable files, malformed or trailing JSON, unknown f
 
 ### Optional: use a configuration file with Docker
 
-The normal Docker workflow above does not require `CONFIG_FILE`. The production image does not contain `config.example.json`.
-
-To use file-backed configuration, mount the chosen configuration file into the container, preferably read-only, and set `CONFIG_FILE` to its path inside the container.
-
-The base Compose configuration supplies non-secret environment defaults. Non-blank environment values take precedence over values from the configuration file. Therefore, to source those settings from the mounted JSON file instead, create a local Compose override such as `compose.config-file.yaml`:
-
-```yaml
-services:
-  company-service:
-    volumes:
-      - ./config.example.json:/app/config.json:ro
-    environment:
-      CONFIG_FILE: /app/config.json
-      HTTP_ADDR: ""
-      DB_MAX_CONNS: ""
-      LOG_LEVEL: ""
-      LOG_FORMAT: ""
-      JWT_ISSUER: ""
-      JWT_AUDIENCE: ""
-```
-
-The empty environment values above allow the corresponding values from the JSON configuration file to be used.
-
-Then start Compose with both files while continuing to supply the secret through the environment:
+The normal Docker workflow above does not require `CONFIG_FILE`. To use file-backed configuration, copy the example and edit the copy as required:
 
 ```bash
+cp config.example.json my-config.json
+# edit my-config.json
+export CONFIG_FILE='./my-config.json'
 export JWT_SECRET='at-least-32-byte-secret-value-1234'
-COMPOSE_FILE=compose.yaml:compose.config-file.yaml make stack-up
+make stack-up
 ```
 
-The base Compose configuration continues to provide the internal `DATABASE_URL`. `DATABASE_URL` and `JWT_SECRET` remain environment-only and are not part of the JSON configuration schema.
+When `CONFIG_FILE` is set, `make stack-up` resolves the host path and uses the supplied Compose override to bind-mount the file read-only at `/app/config.json`. The production image does not contain or bake in the configuration file.
 
-If you use the host-side development-token command with this configuration, ensure its issuer and audience match the values in the mounted JSON file. For example, if the file contains the standard example values:
+If the file supplies `jwt_issuer` and `jwt_audience`, the host-side development-token command reads those same values:
 
 ```bash
-export JWT_ISSUER='xm-company-service'
-export JWT_AUDIENCE='xm-company-service'
 TOKEN=$(make -s dev-token)
 ```
 
-Do not bake configuration files or secrets into the production image.
+The base Compose configuration continues to provide the internal `DATABASE_URL`. `DATABASE_URL` and `JWT_SECRET` remain environment-only and are not part of the JSON configuration schema; continue supplying `JWT_SECRET` through the environment.
 
 ## Verification commands
 

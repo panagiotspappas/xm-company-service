@@ -1,8 +1,0 @@
-{
-  "http_addr": ":8080",
-  "db_max_conns": 7,
-  "log_level": "INFO",
-  "log_format": "json",
-  "jwt_issuer": "docker-config-file-test",
-  "jwt_audience": "docker-config-file-test"
-}

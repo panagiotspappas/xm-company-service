@@ -138,7 +138,7 @@ func TestLoadConfigurationFile(t *testing.T) {
 	}
 }
 
-func TestLoadConfigurationFileEnvironmentOverrides(t *testing.T) {
+func TestLoadConfigurationFileOverridesEnvironment(t *testing.T) {
 	setEnvironment(
 		t,
 		"postgres://example",
@@ -163,29 +163,39 @@ func TestLoadConfigurationFileEnvironmentOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if got.HTTPAddress != "127.0.0.1:9191" {
-		t.Fatalf("HTTPAddress = %q, want environment override", got.HTTPAddress)
+	if got.HTTPAddress != "127.0.0.1:9090" {
+		t.Fatalf("HTTPAddress = %q, want file value", got.HTTPAddress)
 	}
-	if got.DatabaseMaxConns != 30 {
-		t.Fatalf("DatabaseMaxConns = %d, want 30", got.DatabaseMaxConns)
+	if got.DatabaseMaxConns != 20 {
+		t.Fatalf("DatabaseMaxConns = %d, want 20", got.DatabaseMaxConns)
 	}
-	if got.LogLevel != slog.LevelWarn {
-		t.Fatalf("LogLevel = %v, want %v", got.LogLevel, slog.LevelWarn)
+	if got.LogLevel != slog.LevelDebug {
+		t.Fatalf("LogLevel = %v, want %v", got.LogLevel, slog.LevelDebug)
 	}
-	if got.LogFormat != LogFormatText {
-		t.Fatalf("LogFormat = %q, want %q", got.LogFormat, LogFormatText)
+	if got.LogFormat != LogFormatJSON {
+		t.Fatalf("LogFormat = %q, want %q", got.LogFormat, LogFormatJSON)
 	}
-	if got.JWT.Issuer != "environment-issuer" {
-		t.Fatalf("JWT.Issuer = %q, want environment-issuer", got.JWT.Issuer)
+	if got.JWT.Issuer != "file-issuer" {
+		t.Fatalf("JWT.Issuer = %q, want file-issuer", got.JWT.Issuer)
 	}
-	if got.JWT.Audience != "environment-audience" {
-		t.Fatalf("JWT.Audience = %q, want environment-audience", got.JWT.Audience)
+	if got.JWT.Audience != "file-audience" {
+		t.Fatalf("JWT.Audience = %q, want file-audience", got.JWT.Audience)
 	}
 }
 
-func TestLoadPartialConfigurationFileKeepsDefaults(t *testing.T) {
-	setEnvironment(t, "postgres://example", "", "", "", testJWTSecret, "", "")
+func TestLoadPartialConfigurationFileFallsBackToEnvironmentAndDefaults(t *testing.T) {
+	setEnvironment(
+		t,
+		"postgres://example",
+		"127.0.0.1:9191",
+		"WARN",
+		"",
+		testJWTSecret,
+		"",
+		"",
+	)
 	t.Setenv("CONFIG_FILE", writeConfigurationFile(t, `{
+		"http_addr": "   ",
 		"jwt_issuer": "file-issuer",
 		"jwt_audience": "file-audience"
 	}`))
@@ -194,14 +204,14 @@ func TestLoadPartialConfigurationFileKeepsDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if got.HTTPAddress != defaultHTTPAddress {
-		t.Fatalf("HTTPAddress = %q, want %q", got.HTTPAddress, defaultHTTPAddress)
+	if got.HTTPAddress != "127.0.0.1:9191" {
+		t.Fatalf("HTTPAddress = %q, want environment fallback", got.HTTPAddress)
 	}
 	if got.DatabaseMaxConns != defaultDatabaseMaxConns {
 		t.Fatalf("DatabaseMaxConns = %d, want %d", got.DatabaseMaxConns, defaultDatabaseMaxConns)
 	}
-	if got.LogLevel != slog.LevelInfo {
-		t.Fatalf("LogLevel = %v, want %v", got.LogLevel, slog.LevelInfo)
+	if got.LogLevel != slog.LevelWarn {
+		t.Fatalf("LogLevel = %v, want environment fallback %v", got.LogLevel, slog.LevelWarn)
 	}
 	if got.LogFormat != LogFormatText {
 		t.Fatalf("LogFormat = %q, want %q", got.LogFormat, LogFormatText)
@@ -291,6 +301,7 @@ func TestLoadRejectsInvalidConfigurationFileValues(t *testing.T) {
 				testJWTAudience,
 			)
 			t.Setenv("CONFIG_FILE", writeConfigurationFile(t, contents))
+			t.Setenv("DB_MAX_CONNS", "20")
 
 			if _, err := Load(); err == nil {
 				t.Fatal("Load() error = nil, want invalid merged configuration error")
@@ -299,7 +310,7 @@ func TestLoadRejectsInvalidConfigurationFileValues(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsInvalidEnvironmentOverride(t *testing.T) {
+func TestLoadConfigurationFileDatabaseMaxConnsOverridesInvalidEnvironment(t *testing.T) {
 	setEnvironment(
 		t,
 		"postgres://example",
@@ -313,8 +324,12 @@ func TestLoadRejectsInvalidEnvironmentOverride(t *testing.T) {
 	t.Setenv("CONFIG_FILE", writeConfigurationFile(t, `{"db_max_conns":20}`))
 	t.Setenv("DB_MAX_CONNS", "0")
 
-	if _, err := Load(); err == nil {
-		t.Fatal("Load() error = nil, want invalid environment override error")
+	got, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if got.DatabaseMaxConns != 20 {
+		t.Fatalf("DatabaseMaxConns = %d, want file value 20", got.DatabaseMaxConns)
 	}
 }
 
@@ -502,7 +517,7 @@ func TestLoadJWTPreservesSecretAndTrimsClaimsConfiguration(t *testing.T) {
 }
 
 func TestLoadJWTUsesConfigurationFileWithoutDatabaseConfiguration(t *testing.T) {
-	setJWTEnvironment(t, testJWTSecret, "", "")
+	setJWTEnvironment(t, testJWTSecret, "environment-issuer", "environment-audience")
 	t.Setenv("DATABASE_URL", "")
 	t.Setenv("CONFIG_FILE", writeConfigurationFile(t, `{
 		"db_max_conns": 0,

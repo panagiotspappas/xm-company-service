@@ -56,12 +56,9 @@ func Load() (Config, error) {
 		return Config{}, errors.New("DATABASE_URL is required")
 	}
 
-	databaseMaxConnsValue := ""
+	databaseMaxConnsValue := strings.TrimSpace(os.Getenv("DB_MAX_CONNS"))
 	if fileValues.DatabaseMaxConns.set {
 		databaseMaxConnsValue = strconv.FormatInt(int64(fileValues.DatabaseMaxConns.value), 10)
-	}
-	if environmentValue := strings.TrimSpace(os.Getenv("DB_MAX_CONNS")); environmentValue != "" {
-		databaseMaxConnsValue = environmentValue
 	}
 	databaseMaxConns, err := parseDatabaseMaxConns(databaseMaxConnsValue)
 	if err != nil {
@@ -144,13 +141,13 @@ func loadJWT(fileValues fileConfig) (JWTConfig, error) {
 
 func mergedString(defaultValue string, fileValue optional[string], environmentName string) string {
 	value := defaultValue
+	if environmentValue := strings.TrimSpace(os.Getenv(environmentName)); environmentValue != "" {
+		value = environmentValue
+	}
 	if fileValue.set {
 		if configuredValue := strings.TrimSpace(fileValue.value); configuredValue != "" {
 			value = configuredValue
 		}
-	}
-	if environmentValue := strings.TrimSpace(os.Getenv(environmentName)); environmentValue != "" {
-		value = environmentValue
 	}
 
 	return value

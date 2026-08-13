@@ -107,7 +107,7 @@ The supplied Compose model targets development, evaluation, integration tests, a
 
 ### Configuration and secrets
 
-Configuration precedence is built-in defaults, then optional strict JSON, then nonblank environment overrides. The JSON file is only for non-secret runtime settings. `JWT_SECRET` remains environment-only, and `DATABASE_URL` remains environment-only because it may include credentials. The production image contains neither configuration files nor secrets.
+For settings supported by the optional strict JSON file, precedence is a nonblank file value, otherwise a nonblank environment value, otherwise the built-in default. Blank or whitespace-only JSON string values are treated as absent. The JSON file is only for non-secret runtime settings. `JWT_SECRET` remains environment-only, and `DATABASE_URL` remains environment-only because it may include credentials. The production image contains neither configuration files nor secrets.
 
 ## Deferred capabilities
 

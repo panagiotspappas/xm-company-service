@@ -61,7 +61,23 @@ db-down:
 	docker compose rm --stop --force postgres
 
 stack-up:
-	docker compose up -d --build --wait
+	@if [ -z "$$(printf '%s' "$${CONFIG_FILE:-}" | tr -d '[:space:]')" ]; then \
+		docker compose up -d --build --wait; \
+	else \
+		config_file="$$CONFIG_FILE"; \
+		case "$$config_file" in \
+			/*) ;; \
+			*) config_file="$(CURDIR)/$$config_file" ;; \
+		esac; \
+		if [ ! -f "$$config_file" ]; then \
+			printf 'CONFIG_FILE is not a regular file: %s\n' "$$config_file" >&2; \
+			exit 1; \
+		fi; \
+		CONFIG_FILE="$$config_file" docker compose \
+			-f compose.yaml \
+			-f compose.config-file.yaml \
+			up -d --build --wait; \
+	fi
 
 stack-down:
 	docker compose down
